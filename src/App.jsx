@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
+import Header from './components/Header'
 import SearchBar from './components/SearchBar'
 import SortControl from './components/SortControl'
 import MovieList from './components/MovieList'
 import MovieModal from './components/MovieModal'
+import Footer from './components/Footer'
 import { fetchMovieDetails } from './services/tmdb'
 import './App.css'
 
@@ -85,6 +87,7 @@ const App = () => {
 
   return (
     <div className="app">
+      <Header />
       <SearchBar
         query={searchQuery}
         onQueryChange={handleQueryChange}
@@ -119,6 +122,7 @@ const App = () => {
           onClose={handleCloseModal}
         />
       )}
+      <Footer />
     </div>
   )
 }
