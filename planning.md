@@ -1,9 +1,9 @@
 # Component Architecture:
 ### App
-- Responsibility: Root component; owns app-level state (search, sort, selection, favorites/watched) and wires every child together. The Now Playing list fetch lives in MovieList.
+- Responsibility: Root component; owns app-level state (search, mode, pagination, sort, selection, favorites/watched) and wires every child together. The actual fetch (Now Playing or Search) lives in MovieList, driven by props from App.
 - Renders: The entire page — Header, SearchBar, SortControl, MovieList, Footer (and conditionally MovieModal).
 - Props: none (root).
-- States: searchQuery, page, selectedMovie, sortOption, favorites, watched (see State Architecture). The `movies` array and its `isLoading`/`error` flags are owned by MovieList.
+- States: searchQuery, submittedQuery, mode, page, selectedMovie, sortOption, favorites, watched (see State Architecture). The `movies` array, `totalPages`, and the `isLoading`/`error` flags are owned by MovieList.
 - Children: Header, SearchBar, SortControl, MovieList, Footer, MovieModal
 
 ### Header
@@ -30,9 +30,9 @@
 ### MovieList
 - Responsibility: Fetch the Now Playing movies from TMDb and lay out the grid of MovieCard components.
 - Renders: A responsive grid of MovieCards (plus loading and error states).
-- Props: onCardClick (fn), favorites (Set/array), watched (Set/array), onToggleFavorite (fn), onToggleWatched (fn).
-- States: movies (Array, init []), isLoading (Boolean, init false), error (String|null, init null).
-- Trigger: Fetches the Now Playing endpoint via useEffect on mount and stores `results[]` in `movies`.
+- Props: mode ("now_playing" | "search"), query (string, the submitted search text), page (number), onTotalPages (fn — reports the response's `total_pages` up to App), onCardClick (fn), favorites (Set/array), watched (Set/array), onToggleFavorite (fn), onToggleWatched (fn).
+- States: movies (Array, init []), isLoading (Boolean, init false), error (String|null, init null), totalPages (Number, init 1).
+- Trigger: A useEffect keyed on `[mode, query, page]` fetches the matching endpoint. When `page === 1` the results **replace** `movies`; when `page > 1` they are **appended**. `total_pages` is stored locally and reported up via `onTotalPages` so App can hide/disable "Load More".
 - Children: MovieCard
 
 ### MovieCard
@@ -70,6 +70,8 @@ App
 
 
 # API Contracts:
+All TMDb calls go through a thin service layer in `src/services/tmdb.js` (no React) so components never build URLs or call `fetch` directly. The contract URLs below map 1:1 to its exported functions: `fetchNowPlaying(page)`, `searchMovies(query, page)` (and later `fetchMovieDetails(id)`).
+
 ### Now Playing
 - URL: `GET https://api.themoviedb.org/3/movie/now_playing`
 - Parameters: `api_key` (required), `language` (e.g. `en-US`), `page` (number, for "Load More")
@@ -97,19 +99,37 @@ Image transformation (not an endpoint): posters and backdrops are built from the
 - Type: Array<Movie>
 - Initial Value: []
 - Component: MovieList
-- Trigger: Now Playing fetch on mount (inside MovieList); replaced by Search results; appended by "Load More"; reordered by sort
+- Trigger: Fetch keyed on `[mode, query, page]`. Page 1 **replaces** the array (initial load, new search, mode switch); page > 1 **appends** ("Load More"). Reordered by sort.
 
 ### searchQuery
 - Type: String
 - Initial Value: ""
 - Component: App
-- Trigger: User types in the SearchBar input (onQueryChange); reset to "" on Clear
+- Trigger: User types in the SearchBar input (onQueryChange) — this is the live, controlled input value; reset to "" on Clear / "Now Playing"
+
+### submittedQuery
+- Type: String
+- Initial Value: ""
+- Component: App
+- Trigger: Set to the current `searchQuery` when the user submits the SearchBar (Enter or Search button). This is the value actually sent to the Search endpoint, kept separate from the live input so typing doesn't re-fetch on every keystroke. Reset to "" on Clear / "Now Playing".
+
+### mode
+- Type: String ("now_playing" | "search")
+- Initial Value: "now_playing"
+- Component: App
+- Trigger: Set to "search" on a non-empty search submit; reset to "now_playing" on Clear / "Now Playing". Determines which endpoint MovieList fetches.
 
 ### page
 - Type: Number
 - Initial Value: 1
 - Component: App
-- Trigger: User clicks the "Load More" button (incremented, then re-fetch)
+- Trigger: Incremented by the "Load More" button (triggers an append fetch). Reset to 1 whenever the mode or submitted query changes (new search, return to Now Playing).
+
+### totalPages
+- Type: Number
+- Initial Value: 1
+- Component: MovieList (reported up to App via onTotalPages)
+- Trigger: Set from the API response's `total_pages` after each fetch. App compares it against `page` to hide/disable "Load More" once the last page is reached.
 
 ### selectedMovie
 - Type: Object | null
@@ -173,9 +193,9 @@ Image transformation (not an endpoint): posters and backdrops are built from the
 
 
 # Data Flow:
-On mount, **MovieList** calls the Now Playing endpoint and receives a raw JSON response. MovieList reads the `results[]` array and stores it in its own `movies` state — each card only needs `id`, `title`, `poster_path`, and `vote_average`, and the `poster_path` is turned into a full URL (`https://image.tmdb.org/t/p/w500{poster_path}`) inside MovieCard at render time. MovieList maps over `movies` and renders one **MovieCard** per movie, passing each `movie` object plus the `isFavorite`/`isWatched` flags derived from App's `favorites`/`watched` state.
+App owns the orchestration state (`mode`, `submittedQuery`, `page`, `totalPages`) and passes `mode`/`query`/`page` down to **MovieList** — but App itself does no network or data work. The actual fetching lives in the **`src/services/tmdb.js`** layer (`fetchNowPlaying(page)`, `searchMovies(query, page)`), which build the URL and return the raw JSON. MovieList runs a `useEffect` keyed on `[mode, query, page]`: it picks the matching service function, reads the `results[]` array, and stores it in its own `movies` state. When `page === 1` the results **replace** `movies` (initial load, a new search, or returning to Now Playing); when `page > 1` they are **appended** (Load More). MovieList reports `total_pages` back up to App via `onTotalPages` so App can show/hide the Load More button (`page < totalPages`). Each card only needs `id`, `title`, `poster_path`, and `vote_average`, and the `poster_path` is turned into a full URL (`https://image.tmdb.org/t/p/w500{poster_path}`) inside MovieCard at render time. MovieList maps over `movies` and renders one **MovieCard** per movie, passing each `movie` object plus the `isFavorite`/`isWatched` flags derived from App's `favorites`/`watched` state.
 
-When a user clicks a MovieCard, the card calls `onClick(movie.id)`; that handler lives in App, so the clicked movie's **id flows back up** to App. App then fires the Movie Details fetch (`/movie/{id}`), stores the result in `selectedMovie`, and renders **MovieModal** with it. The details response is transformed for display: `genres[]` is mapped to a comma-separated list of `name`s, `runtime` is formatted into hours/minutes, and `backdrop_path` is expanded into a full image URL. Sorting and searching are pure transformations of the `movies` array inside App before it is handed to MovieList, so the data path to MovieCard stays the same.
+When a user clicks a MovieCard, the card calls `onClick(movie.id)`; that handler lives in App, so the clicked movie's **id flows back up** to App. App then fires the Movie Details fetch (`/movie/{id}`, via the service), stores the result in `selectedMovie`, and renders **MovieModal** with it. The details response is transformed for display: `genres[]` is mapped to a comma-separated list of `name`s, `runtime` is formatted into hours/minutes, and `backdrop_path` is expanded into a full image URL. Sorting is a transformation of the `movies` array **inside MovieList** (the owner of that array), and searching swaps the endpoint MovieList fetches — so the data path to MovieCard stays the same.
 
 
 ### AI Feature Spec:

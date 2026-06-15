@@ -1,36 +1,57 @@
 import { useState, useEffect } from 'react'
 import MovieCard from './MovieCard'
+import { fetchNowPlaying, searchMovies } from '../services/tmdb'
 import './MovieList.css'
 
-const MovieList = () => {
+const MovieList = ({ mode, query, page, onTotalPages }) => {
   const [movies, setMovies] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    const fetchNowPlaying = async () => {
+    // Don't fetch a search with no query (e.g. right after clearing).
+    if (mode === 'search' && !query) {
+      return
+    }
+
+    let ignore = false
+
+    const load = async () => {
       setIsLoading(true)
       setError(null)
       try {
-        const apiKey = import.meta.env.VITE_API_KEY
-        const url = `https://api.themoviedb.org/3/movie/now_playing?api_key=${apiKey}&language=en-US&page=1`
-        const response = await fetch(url)
-        if (!response.ok) {
-          throw new Error(`Request failed (${response.status})`)
-        }
-        const data = await response.json()
-        setMovies(data.results ?? [])
+        const data =
+          mode === 'search'
+            ? await searchMovies(query, page)
+            : await fetchNowPlaying(page)
+
+        if (ignore) return
+
+        const results = data.results ?? []
+        // Page 1 replaces the list (initial load, new search, toggle);
+        // later pages append (Load More).
+        setMovies((prevMovies) =>
+          page === 1 ? results : [...prevMovies, ...results]
+        )
+        onTotalPages(data.total_pages ?? 1)
       } catch (err) {
+        if (ignore) return
         setError(err.message ?? 'Failed to load movies.')
       } finally {
-        setIsLoading(false)
+        if (!ignore) setIsLoading(false)
       }
     }
 
-    fetchNowPlaying()
-  }, [])
+    load()
 
-  if (isLoading) {
+    // Discard this fetch's result if mode/query/page changed before it landed.
+    return () => {
+      ignore = true
+    }
+  }, [mode, query, page, onTotalPages])
+
+  // Full-screen loading only on a fresh list (page 1); appends keep the grid.
+  if (isLoading && page === 1) {
     return <p className="movie-list__status">Loading movies…</p>
   }
 
