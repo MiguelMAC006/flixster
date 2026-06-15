@@ -1,11 +1,8 @@
-import { useState } from 'react'
-import './App.css'
+import React from 'react'
 
 const App = () => {
   return (
-    <div className="App">
-    
-    </div>
+    <div>App</div>
   )
 }
 
