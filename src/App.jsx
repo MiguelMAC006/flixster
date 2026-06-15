@@ -1,8 +1,11 @@
-import React from 'react'
+import MovieList from './components/MovieList'
+import './App.css'
 
 const App = () => {
   return (
-    <div>App</div>
+    <div className="app">
+      <MovieList />
+    </div>
   )
 }
 

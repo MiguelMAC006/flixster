@@ -1,9 +1,9 @@
 # Component Architecture:
 ### App
-- Responsibility: Root component; owns app-level state and fetch logic, and wires every child together.
+- Responsibility: Root component; owns app-level state (search, sort, selection, favorites/watched) and wires every child together. The Now Playing list fetch lives in MovieList.
 - Renders: The entire page — Header, SearchBar, SortControl, MovieList, Footer (and conditionally MovieModal).
 - Props: none (root).
-- States: movies, searchQuery, page, selectedMovie, sortOption, isLoading, error, favorites, watched (see State Architecture).
+- States: searchQuery, page, selectedMovie, sortOption, favorites, watched (see State Architecture). The `movies` array and its `isLoading`/`error` flags are owned by MovieList.
 - Children: Header, SearchBar, SortControl, MovieList, Footer, MovieModal
 
 ### Header
@@ -28,10 +28,11 @@
 - Children: None
 
 ### MovieList
-- Responsibility: Container that lays out the grid of MovieCard components.
-- Renders: A responsive grid of MovieCards.
-- Props: movies (array), onCardClick (fn), favorites (Set/array), watched (Set/array), onToggleFavorite (fn), onToggleWatched (fn).
-- States: None
+- Responsibility: Fetch the Now Playing movies from TMDb and lay out the grid of MovieCard components.
+- Renders: A responsive grid of MovieCards (plus loading and error states).
+- Props: onCardClick (fn), favorites (Set/array), watched (Set/array), onToggleFavorite (fn), onToggleWatched (fn).
+- States: movies (Array, init []), isLoading (Boolean, init false), error (String|null, init null).
+- Trigger: Fetches the Now Playing endpoint via useEffect on mount and stores `results[]` in `movies`.
 - Children: MovieCard
 
 ### MovieCard
@@ -95,8 +96,8 @@ Image transformation (not an endpoint): posters and backdrops are built from the
 ### movies
 - Type: Array<Movie>
 - Initial Value: []
-- Component: App
-- Trigger: Now Playing fetch on mount; replaced by Search results; appended by "Load More"; reordered by sort
+- Component: MovieList
+- Trigger: Now Playing fetch on mount (inside MovieList); replaced by Search results; appended by "Load More"; reordered by sort
 
 ### searchQuery
 - Type: String
@@ -125,14 +126,14 @@ Image transformation (not an endpoint): posters and backdrops are built from the
 ### isLoading
 - Type: Boolean
 - Initial Value: false
-- Component: App
-- Trigger: Set true before any TMDb fetch, false after it resolves/rejects
+- Component: MovieList
+- Trigger: Set true before the Now Playing fetch, false after it resolves/rejects
 
 ### error
 - Type: String | null
 - Initial Value: null
-- Component: App
-- Trigger: Set when a TMDb fetch fails; cleared on the next successful fetch
+- Component: MovieList
+- Trigger: Set when the Now Playing fetch fails; cleared on the next successful fetch
 
 ### favorites
 - Type: Array<number> (movie ids) or Set
@@ -172,7 +173,7 @@ Image transformation (not an endpoint): posters and backdrops are built from the
 
 
 # Data Flow:
-On mount, **App** calls the Now Playing endpoint and receives a raw JSON response. App reads the `results[]` array and stores it in the `movies` state — each card only needs `id`, `title`, `poster_path`, and `vote_average`, and the `poster_path` is turned into a full URL (`https://image.tmdb.org/t/p/w500{poster_path}`) either when stored or inside MovieCard at render time. App passes the `movies` array down to **MovieList** as a prop; MovieList maps over it and renders one **MovieCard** per movie, passing each `movie` object plus the `isFavorite`/`isWatched` flags derived from App's `favorites`/`watched` state.
+On mount, **MovieList** calls the Now Playing endpoint and receives a raw JSON response. MovieList reads the `results[]` array and stores it in its own `movies` state — each card only needs `id`, `title`, `poster_path`, and `vote_average`, and the `poster_path` is turned into a full URL (`https://image.tmdb.org/t/p/w500{poster_path}`) inside MovieCard at render time. MovieList maps over `movies` and renders one **MovieCard** per movie, passing each `movie` object plus the `isFavorite`/`isWatched` flags derived from App's `favorites`/`watched` state.
 
 When a user clicks a MovieCard, the card calls `onClick(movie.id)`; that handler lives in App, so the clicked movie's **id flows back up** to App. App then fires the Movie Details fetch (`/movie/{id}`), stores the result in `selectedMovie`, and renders **MovieModal** with it. The details response is transformed for display: `genres[]` is mapped to a comma-separated list of `name`s, `runtime` is formatted into hours/minutes, and `backdrop_path` is expanded into a full image URL. Sorting and searching are pure transformations of the `movies` array inside App before it is handed to MovieList, so the data path to MovieCard stays the same.
 

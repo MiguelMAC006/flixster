@@ -1,0 +1,19 @@
+.movie-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 20px;
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.movie-list__status {
+  text-align: center;
+  padding: 48px 24px;
+  font-size: 1.1rem;
+  color: #c9c9d1;
+}
+
+.movie-list__status--error {
+  color: #ff6b6b;
+}
