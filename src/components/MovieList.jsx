@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import MovieCard from './MovieCard'
 import { fetchNowPlaying, searchMovies } from '../services/tmdb'
 import './MovieList.css'
 
-const MovieList = ({ mode, query, page, onTotalPages, onCardClick }) => {
+const MovieList = ({ mode, query, page, sortOption, onTotalPages, onCardClick }) => {
   const [movies, setMovies] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -50,6 +50,24 @@ const MovieList = ({ mode, query, page, onTotalPages, onCardClick }) => {
     }
   }, [mode, query, page, onTotalPages])
 
+  // Sorting is a render-time transform: copy the fetched list (never mutate it)
+  // and reorder by the selected option. "default" keeps the API order.
+  const sortedMovies = useMemo(() => {
+    const copy = [...movies]
+    switch (sortOption) {
+      case 'title':
+        return copy.sort((a, b) => a.title.localeCompare(b.title))
+      case 'release_date':
+        return copy.sort(
+          (a, b) => new Date(b.release_date || 0) - new Date(a.release_date || 0)
+        )
+      case 'vote_average':
+        return copy.sort((a, b) => b.vote_average - a.vote_average)
+      default:
+        return copy
+    }
+  }, [movies, sortOption])
+
   // Full-screen loading only on a fresh list (page 1); appends keep the grid.
   if (isLoading && page === 1) {
     return <p className="movie-list__status">Loading movies…</p>
@@ -65,7 +83,7 @@ const MovieList = ({ mode, query, page, onTotalPages, onCardClick }) => {
 
   return (
     <div className="movie-list">
-      {movies.map((movie) => (
+      {sortedMovies.map((movie) => (
         <MovieCard key={movie.id} movie={movie} onClick={onCardClick} />
       ))}
     </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import SearchBar from './components/SearchBar'
+import SortControl from './components/SortControl'
 import MovieList from './components/MovieList'
 import MovieModal from './components/MovieModal'
 import { fetchMovieDetails } from './services/tmdb'
@@ -11,6 +12,7 @@ const App = () => {
   const [mode, setMode] = useState('now_playing')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [sortOption, setSortOption] = useState('default')
 
   // Modal: the clicked movie's id drives a separate details fetch.
   const [selectedMovieId, setSelectedMovieId] = useState(null)
@@ -67,6 +69,8 @@ const App = () => {
 
   const handleCardClick = (id) => setSelectedMovieId(id)
 
+  const handleSortChange = (value) => setSortOption(value)
+
   // Clear details too so reopening a card never flashes the previous movie.
   const handleCloseModal = () => {
     setSelectedMovieId(null)
@@ -87,10 +91,12 @@ const App = () => {
         onSearch={handleSearch}
         onClear={handleClear}
       />
+      <SortControl sortOption={sortOption} onSortChange={handleSortChange} />
       <MovieList
         mode={mode}
         query={submittedQuery}
         page={page}
+        sortOption={sortOption}
         onTotalPages={handleTotalPages}
         onCardClick={handleCardClick}
       />
