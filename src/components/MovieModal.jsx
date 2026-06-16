@@ -12,6 +12,19 @@ const SparkleIcon = () => (
   </svg>
 )
 
+// Picks the best YouTube trailer from TMDb's videos payload: an official
+// "Trailer" if present, otherwise any YouTube trailer, then any YouTube clip.
+// Returns the video key (used to build the embed URL) or null.
+const findTrailerKey = (videos) => {
+  const results = videos?.results?.filter((v) => v.site === 'YouTube') ?? []
+  if (results.length === 0) return null
+  const trailer =
+    results.find((v) => v.type === 'Trailer' && v.official) ??
+    results.find((v) => v.type === 'Trailer') ??
+    results[0]
+  return trailer?.key ?? null
+}
+
 // "128" -> "2h 8m"; guards a missing/zero runtime.
 const formatRuntime = (runtime) => {
   if (!runtime) return null
@@ -46,6 +59,7 @@ const MovieModal = ({ details, isLoading, error, onClose }) => {
     : null
   const runtime = formatRuntime(details?.runtime)
   const genres = details?.genres?.map((genre) => genre.name).join(', ')
+  const trailerKey = findTrailerKey(details?.videos)
 
   // Once details are loaded, ask the AI for a watch recommendation. Keyed on
   // the movie id so switching movies refetches; the `ignore` flag discards a
@@ -118,6 +132,21 @@ const MovieModal = ({ details, isLoading, error, onClose }) => {
               {genres && <p className="movie-modal__genres">{genres}</p>}
               {details.overview && (
                 <p className="movie-modal__overview">{details.overview}</p>
+              )}
+
+              {trailerKey && (
+                <div className="movie-modal__trailer">
+                  <h3 className="movie-modal__trailer-label">Trailer</h3>
+                  <div className="movie-modal__trailer-frame-wrap">
+                    <iframe
+                      className="movie-modal__trailer-frame"
+                      src={`https://www.youtube.com/embed/${trailerKey}`}
+                      title={`${details.title} trailer`}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                </div>
               )}
 
               <div className="movie-modal__insight">

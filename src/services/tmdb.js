@@ -27,6 +27,7 @@ export const searchMovies = (query, page = 1) =>
   request('/search/movie', { query, page })
 
 // Full details for one movie. Returns { title, runtime, release_date,
-// genres[], overview, backdrop_path, ... } — fields the list endpoints omit.
+// genres[], overview, backdrop_path, videos, ... } — fields the list endpoints
+// omit. `append_to_response=videos` bundles trailers/clips in the same request.
 export const fetchMovieDetails = (id) =>
-  request(`/movie/${id}`, { language: 'en-US' })
+  request(`/movie/${id}`, { language: 'en-US', append_to_response: 'videos' })
