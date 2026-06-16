@@ -125,7 +125,7 @@ With more time I would have refactored the state management to use Context (or a
 
 * Reflect on your project demo, what went well? Were there things that maybe didn't go as planned? Did you notice something that your peer did that you would like to try next time?
 
-
+I think my project demo went well. I was more structured this time in my presentation.
 
 ### Open-source libraries used
 
